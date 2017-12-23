@@ -48,9 +48,10 @@ class LSTMNET:
         return np.argmax(probs.npvalue())
 
 
-def accuracy_on(net, word_and_tags):
+def accuracy_on(net, word_and_tags, char2int):
     """
 
+    :param char2int:
     :type net: LSTMNET
     :param net:
     :param word_and_tags:
@@ -58,8 +59,10 @@ def accuracy_on(net, word_and_tags):
     """
     batch_preds = []
     tags = []
+    word_and_tags = list(word_and_tags)  # make a copy
+    random.shuffle(word_and_tags)
     for word, tag in word_and_tags:
-        inputs = list(word)
+        inputs = [char2int[c] for c in list(word)]
         batch_preds.append(net(inputs))
         tags.append(GOOD if tag == "good" else BAD)
     dy.forward(batch_preds)
@@ -70,13 +73,16 @@ def accuracy_on(net, word_and_tags):
     return good / len(batch_preds)
 
 
-def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags):
+def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags, char2int):
     """
 
+    :param char2int:
+    :param trainer:
     :type net: LSTMNET
     :param net:
     :param words_and_tags:
     :param epoches:
+    :param acc_words_and_tags:
     :return:
     """
     start_time = time()
@@ -85,13 +91,70 @@ def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags):
         losses = []
         random.shuffle(copy)
         for word, tag in copy:
-            inputs = list(word)
+            inputs = [char2int[c] for c in list(word)]
             loss = net.compute_loss(inputs, GOOD if tag == "good" else BAD)
             losses.append(loss)
         batch_loss = dy.esum(losses) / len(copy)
         avg_loss = batch_loss.value()
         batch_loss.backward()
         trainer.update()
-        acc = accuracy_on(net, acc_words_and_tags)
+        acc = accuracy_on(net, acc_words_and_tags, char2int)
         passed_time = time() - start_time
         print i, avg_loss, acc, passed_time
+
+
+def read_words_file(path, tag=None):
+    """
+    
+    :type tag: str
+    :param path: 
+    :param tag: 
+    :return: 
+    """
+    return [line[-1] if tag is None else (line[-1], tag)
+            for line in file(path) if line != "\n"]
+
+
+def predict_on(net, words, char2int):
+    batch_preds = []
+    for word in words:
+        inputs = [char2int[c] for c in list(word)]
+        batch_preds.append(net(inputs))
+    dy.forward(batch_preds)
+    return ["good" if np.argmax(pred.npvalue()) == GOOD else "bad" for pred in batch_preds]
+
+
+def main():
+    vocab = list("abcd") + [str(i) for i in range(10)]
+    int2char = vocab
+    char2int = {c: i for i, c in enumerate(int2char)}
+
+    num_layers = 1
+    embed_dim = 50
+    in_dim = 150
+    hid_dim = 100
+    out_dim = 2
+
+    net = LSTMNET(num_layers, embed_dim, in_dim, hid_dim, out_dim, len(vocab))
+    trainer = dy.AdamTrainer(net)
+
+    train_file, dev_file, test_file = "_examples", "_dev", "_test"
+
+    train = read_words_file("pos" + train_file, "good") + read_words_file("neg" + train_file, "bad")
+    dev = read_words_file("pos" + dev_file, "good") + read_words_file("neg" + dev_file, "bad")
+    test = read_words_file("pos" + test_file) + read_words_file("neg" + test_file)
+
+    # Train and check accuracy each iteration
+    epoches = 15
+    train_on(net, trainer, train, epoches, dev, char2int)
+
+    # Predict on Test
+    predictions = predict_on(net, test, char2int)
+    output = open("test1.pred", "w")
+    for i, word in enumerate(test):
+        output.write("{:54}\t{}\n".format(word, predictions[i]))
+    output.close()
+
+
+if __name__ == "__main__":
+    main()
