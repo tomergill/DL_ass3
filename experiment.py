@@ -81,9 +81,9 @@ def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags, char2int
     :param acc_words_and_tags:
     :return:
     """
-    print "+----+--------+----------+---------+"
-    print "| it |  loss  | time (s) | dev_acc |"
-    print "+----+--------+----------+---------+"
+    print "+----+--------+----------+----------+"
+    print "| it |  loss  | time (s) | dev_acc  |"
+    print "+----+--------+----------+----------+"
     start_time = time()
     copy = list(words_and_tags)
     for i in xrange(epoches):
@@ -98,8 +98,8 @@ def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags, char2int
         avg_loss = tot_loss / len(copy)
         acc = accuracy_on(net, acc_words_and_tags, char2int)
         passed_time = time() - start_time
-        print "| %2d | %1.4f | %8.5f | %5.2f %% |" % (i, avg_loss, passed_time, acc * 100)
-    print "+----+--------+----------+----------+---------+"
+        print "| %2d | %1.4f | %8.5f | %6.2f %% |" % (i, avg_loss, passed_time, acc * 100)
+    print "+----+--------+----------+-----------+"
 
 
 def read_words_file(path, tag=None):
