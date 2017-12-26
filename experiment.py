@@ -16,9 +16,9 @@ class LSTMNET:
         self.pc = params
         self.__builder = dy.LSTMBuilder(num_layers, embed_dim, in_dim, self.pc)
         self.__E = params.add_lookup_parameters((vocab_size, embed_dim))
-        self.__W1 = params.add_parameters((embed_dim, hid_dim))  # TODO SIZES
+        self.__W1 = params.add_parameters((hid_dim, in_dim))  # TODO SIZES
         self.__b1 = params.add_parameters(hid_dim)
-        self.__W2 = params.add_parameters((hid_dim, out_dim))
+        self.__W2 = params.add_parameters((out_dim, hid_dim))
         self.__b2 = params.add_parameters(out_dim)
 
     def __call__(self, inputs):
@@ -27,13 +27,13 @@ class LSTMNET:
         W2 = dy.parameter(self.__W2)
         b1 = dy.parameter(self.__b1)
         b2 = dy.parameter(self.__b2)
-        E = dy.parameter(self.__E)
+        # E = dy.parameter(self.__E)
 
         # Inserting the inputs to the LSTM
         s = self.__builder.initial_state()
-        embeded = [E[i] for i in inputs]
-        s = s.add_inputs(embeded)
-        x = s.output()
+        embeded = [dy.lookup(self.__E, i) for i in inputs]
+        outputs = s.transduce(embeded)
+        x = outputs[-1]
 
         # Inserting the LSTM's output vector to the MLP1 and return the output
         h1 = dy.tanh(W1 * x + b1)
@@ -57,20 +57,16 @@ def accuracy_on(net, word_and_tags, char2int):
     :param word_and_tags:
     :return:
     """
-    batch_preds = []
-    tags = []
     word_and_tags = list(word_and_tags)  # make a copy
     random.shuffle(word_and_tags)
+    good = 0.0
     for word, tag in word_and_tags:
         inputs = [char2int[c] for c in list(word)]
-        batch_preds.append(net(inputs))
-        tags.append(GOOD if tag == "good" else BAD)
-    dy.forward(batch_preds)
-    good = 0.0
-    for i, pred in enumerate(batch_preds):
-        if np.argmax(pred.npvalue()) == tags[i]:
+        output = net(inputs)
+        t = GOOD if tag == "good" else BAD
+        if np.argmax(output.npvalue()) == t:
             good += 1
-    return good / len(batch_preds)
+    return good / len(word_and_tags)
 
 
 def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags, char2int):
@@ -91,19 +87,18 @@ def train_on(net, trainer, words_and_tags, epoches, acc_words_and_tags, char2int
     start_time = time()
     copy = list(words_and_tags)
     for i in xrange(epoches):
-        losses = []
+        tot_loss = 0.0
         random.shuffle(copy)
         for word, tag in copy:
             inputs = [char2int[c] for c in list(word)]
             loss = net.compute_loss(inputs, GOOD if tag == "good" else BAD)
-            losses.append(loss)
-        batch_loss = dy.esum(losses) / len(copy)
-        avg_loss = batch_loss.value()
-        batch_loss.backward()
-        trainer.update()
+            tot_loss += loss.value()
+            loss.backward()
+            trainer.update()
+        avg_loss = tot_loss / len(copy)
         acc = accuracy_on(net, acc_words_and_tags, char2int)
         passed_time = time() - start_time
-        print "| %2d | %1.4f | %8.5f | %5.2f %% |" % (i, avg_loss, acc * 100, passed_time)
+        print "| %2d | %1.4f | %8.5f | %5.2f %% |" % (i, avg_loss, passed_time, acc * 100)
     print "+----+--------+----------+----------+---------+"
 
 
@@ -120,16 +115,16 @@ def read_words_file(path, tag=None):
 
 
 def predict_on(net, words, char2int):
-    batch_preds = []
+    preds = []
     for word in words:
         inputs = [char2int[c] for c in list(word)]
-        batch_preds.append(net(inputs))
-    dy.forward(batch_preds)
-    return ["good" if np.argmax(pred.npvalue()) == GOOD else "bad" for pred in batch_preds]
+        out = net(inputs)
+        preds.append("good" if np.argmax(out.npvalue()) == GOOD else "bad")
+    return preds
 
 
 def main():
-    vocab = list("abcd") + [str(i) for i in range(10)]
+    vocab = [str(i) for i in range(10)] + list("abcd")
     int2char = vocab
     char2int = {c: i for i, c in enumerate(int2char)}
 
