@@ -144,7 +144,7 @@ def main():
     test = read_words_file("pos" + test_file) + read_words_file("neg" + test_file)
 
     # Train and check accuracy each iteration
-    epoches = 15
+    epoches = 5
     print "######################################################"
     print "Run parameters:"
     print "*\tLSTM layers: %d" % num_layers
@@ -163,9 +163,9 @@ def main():
     predictions = predict_on(net, test, char2int)
     output = open("test1.pred", "w")
     for i, word in enumerate(test):
-        string = "{:54}\t{}\n".format(word, predictions[i])
+        string = "{:54}\t{}".format(word, predictions[i])
         print string
-        output.write(string)
+        output.write(string + "\n")
     output.close()
 
 
