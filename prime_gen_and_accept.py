@@ -2,12 +2,10 @@ import random
 import dynet as dy
 import experiment as model
 
-VOCAB = [str(idx) for idx in xrange(10)] \
-        + [chr(c) for c in xrange(ord('a'), ord('z'))] \
-        + [chr(c) for c in xrange(ord('A'), ord('Z'))]
+VOCAB = [str(idx) for idx in xrange(10)]
 
 
-def generate_palindrome(max_len=50):
+def generate_prime(max_len=50):
     length = random.randint(1, max_len)
     s = "".join([VOCAB[random.randint(0, len(VOCAB) - 1)] for _ in xrange(length)])
     if random.randint(0, 1) == 1:  # odd length palindrome
@@ -18,9 +16,9 @@ def generate_palindrome(max_len=50):
 
 def generate_bad(max_len=None, max_change_number=10):
     if max_len is None:
-        pal = generate_palindrome()
+        pal = generate_prime()
     else:
-        pal = generate_palindrome(max_len)
+        pal = generate_prime(max_len)
 
     opal = pal
 
@@ -42,7 +40,7 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
     words = []
     for _ in xrange(half_size):
         while True:
-            good = generate_palindrome(max_len)
+            good = generate_prime(max_len)
             if (good, "good") not in not_in:
                 break
 

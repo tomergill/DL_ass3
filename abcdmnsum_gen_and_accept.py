@@ -2,38 +2,40 @@ import random
 import dynet as dy
 import experiment as model
 
-VOCAB = [str(idx) for idx in xrange(10)] \
-        + [chr(c) for c in xrange(ord('a'), ord('z'))] \
-        + [chr(c) for c in xrange(ord('A'), ord('Z'))]
+VOCAB = ['a', 'b', 'c', 'd']
 
 
-def generate_palindrome(max_len=50):
-    length = random.randint(1, max_len)
-    s = "".join([VOCAB[random.randint(0, len(VOCAB) - 1)] for _ in xrange(length)])
-    if random.randint(0, 1) == 1:  # odd length palindrome
-        return s + VOCAB[random.randint(0, len(VOCAB) - 1)] + s[::-1]
-    else:  # even length palindrome
-        return s + s[::-1]
+def generate_abcdmnsum(max_len=25):
+    n, m = 0, 0
+    while m == 0 and n == 0:
+        n, m = random.randint(0, max_len), random.randint(0, max_len)
+    return (m+n) * 'a' + n * 'b' + m * 'c' + (m+n) * 'd'
 
 
 def generate_bad(max_len=None, max_change_number=10):
     if max_len is None:
-        pal = generate_palindrome()
+        abcd = generate_abcdmnsum()
     else:
-        pal = generate_palindrome(max_len)
+        abcd = generate_abcdmnsum(max_len)
 
-    opal = pal
+    oabcd = abcd
 
-    if max_change_number > len(pal):
-        max_change_number = len(pal) / 2
+    if max_change_number > len(abcd):
+        max_change_number = len(abcd) / 2
 
     for _ in xrange(max_change_number):
-        i = random.randint(0, len(pal) - 1)
-        pal = pal[:i] + VOCAB[random.randint(0, len(VOCAB) - 1)] + pal[i+1:]
+        i = random.randint(0, len(abcd) - 1)
+        action = random.randint(0,2)
+        if action == 0:  # replace a char
+            abcd = abcd[:i] + VOCAB[random.randint(0, len(VOCAB) - 1)] + abcd[i+1:]
+        elif action == 1:  # remove a char
+            abcd = abcd[:i] + abcd[i+1:]
+        else:  # add a char
+            abcd = abcd[:i+1] + VOCAB[random.randint(0, len(VOCAB) - 1)] + abcd[i + 1:]
 
-    if pal == opal:
+    if abcd == oabcd or abcd == "":
         return generate_bad(max_len, max_change_number + 2)
-    return pal
+    return abcd
 
 
 def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
@@ -42,7 +44,7 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
     words = []
     for _ in xrange(half_size):
         while True:
-            good = generate_palindrome(max_len)
+            good = generate_abcdmnsum(max_len)
             if (good, "good") not in not_in:
                 break
 
@@ -60,14 +62,26 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
     return words
 
 
-def is_palindrome(p):
-    halflen = len(p) / 2
-    fhalf = p[:halflen]
-    if len(p) % 2 == 0:
-        shalf = p[halflen:]
-    else:
-        shalf = p[halflen + 1:]
-    return fhalf == shalf[::-1]
+def is_good(s):
+    if s == "":
+        return False
+    plus = 0
+    while s[plus] == 'a':
+        plus += 1
+    if s[plus] == 'd':
+        return False
+    n = 0
+    while s[plus +n] == 'b':
+        n += 1
+    m = 0
+    while s[plus + n + m] == 'c':
+        m += 1
+    if s[plus + n+m] == 'a' or s[plus + n+m] == 'b' or len(s[plus + m+n:]) != m + n or plus != m+n:
+        return False
+    for c in s[plus + m+n:]:
+        if c != 'd':
+            return False
+    return True
 
 
 if __name__ == "__main__":
@@ -107,13 +121,13 @@ if __name__ == "__main__":
     print "\nWrong Predictions on TEST:"
     predictions = model.predict_on(net, test, char2int)
     good_preds = 0.0
-    output = open("pali.pred", "w")
+    output = open("abcmnsum.pred", "w")
     for idx, word in enumerate(test):
         string = "{}\t{}".format(word, predictions[idx])
 
-        pali = is_palindrome(word)
+        is_abcd = is_good(word)
         pred = predictions[idx]
-        if (pali and pred == "good") or (not pali and pred == "bad"):
+        if (is_abcd and pred == "good") or (not is_abcd and pred == "bad"):
             good_preds += 1.0
         else:
             print idx, string

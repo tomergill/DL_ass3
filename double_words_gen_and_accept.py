@@ -7,20 +7,17 @@ VOCAB = [str(idx) for idx in xrange(10)] \
         + [chr(c) for c in xrange(ord('A'), ord('Z'))]
 
 
-def generate_palindrome(max_len=50):
+def generate_double(max_len=50):
     length = random.randint(1, max_len)
-    s = "".join([VOCAB[random.randint(0, len(VOCAB) - 1)] for _ in xrange(length)])
-    if random.randint(0, 1) == 1:  # odd length palindrome
-        return s + VOCAB[random.randint(0, len(VOCAB) - 1)] + s[::-1]
-    else:  # even length palindrome
-        return s + s[::-1]
+    w = "".join([VOCAB[random.randint(0, len(VOCAB) - 1)] for _ in xrange(length)])
+    return 2 * w
 
 
 def generate_bad(max_len=None, max_change_number=10):
     if max_len is None:
-        pal = generate_palindrome()
+        pal = generate_double()
     else:
-        pal = generate_palindrome(max_len)
+        pal = generate_double(max_len)
 
     opal = pal
 
@@ -39,10 +36,11 @@ def generate_bad(max_len=None, max_change_number=10):
 def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
                        max_change_number=10):
     not_in = [] if not_in is None else not_in
-    words = []
-    for _ in xrange(half_size):
+    good_words = set()
+    bad_words = set()
+    while len(good_words) != half_size and len(bad_words) != half_size:
         while True:
-            good = generate_palindrome(max_len)
+            good = generate_double(max_len)
             if (good, "good") not in not_in:
                 break
 
@@ -52,22 +50,17 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
                 break
 
         if tag:
-            words.append((good, "good"))
-            words.append((bad, "bad"))
+            good_words.add((good, "good"))
+            bad_words.add((bad, "bad"))
         else:
-            words.append(good)
-            words.append(bad)
-    return words
+            good_words.add(good)
+            bad_words.add(bad)
+    return list(good_words) + list(bad_words)
 
 
 def is_palindrome(p):
-    halflen = len(p) / 2
-    fhalf = p[:halflen]
-    if len(p) % 2 == 0:
-        shalf = p[halflen:]
-    else:
-        shalf = p[halflen + 1:]
-    return fhalf == shalf[::-1]
+    half = len(p) /2
+    return p[:half] == p[half:]
 
 
 if __name__ == "__main__":
@@ -89,7 +82,7 @@ if __name__ == "__main__":
     trainer = dy.AdamTrainer(net.pc)
 
     # Train and check accuracy each iteration
-    epoches = 5
+    epoches = 15
     print "######################################################"
     print "Run parameters:"
     print "*\tLSTM layers: %d" % num_layers
@@ -107,7 +100,7 @@ if __name__ == "__main__":
     print "\nWrong Predictions on TEST:"
     predictions = model.predict_on(net, test, char2int)
     good_preds = 0.0
-    output = open("pali.pred", "w")
+    output = open("double.pred", "w")
     for idx, word in enumerate(test):
         string = "{}\t{}".format(word, predictions[idx])
 

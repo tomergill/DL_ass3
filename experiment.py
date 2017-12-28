@@ -16,7 +16,7 @@ class LSTMNET:
         self.pc = params
         self.__builder = dy.LSTMBuilder(num_layers, embed_dim, in_dim, self.pc)
         self.__E = params.add_lookup_parameters((vocab_size, embed_dim))
-        self.__W1 = params.add_parameters((hid_dim, in_dim))  # TODO SIZES
+        self.__W1 = params.add_parameters((hid_dim, in_dim))
         self.__b1 = params.add_parameters(hid_dim)
         self.__W2 = params.add_parameters((out_dim, hid_dim))
         self.__b2 = params.add_parameters(out_dim)

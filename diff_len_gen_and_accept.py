@@ -2,38 +2,33 @@ import random
 import dynet as dy
 import experiment as model
 
-VOCAB = [str(idx) for idx in xrange(10)] \
-        + [chr(c) for c in xrange(ord('a'), ord('z'))] \
-        + [chr(c) for c in xrange(ord('A'), ord('Z'))]
+VOCAB = ['a', 'b']
 
 
-def generate_palindrome(max_len=50):
-    length = random.randint(1, max_len)
-    s = "".join([VOCAB[random.randint(0, len(VOCAB) - 1)] for _ in xrange(length)])
-    if random.randint(0, 1) == 1:  # odd length palindrome
-        return s + VOCAB[random.randint(0, len(VOCAB) - 1)] + s[::-1]
-    else:  # even length palindrome
-        return s + s[::-1]
+def get_other(c):
+    return VOCAB[1] if c == VOCAB[0] else VOCAB[0]
+
+
+def generate_good(max_len=50):
+    i, j = 0, 0
+    while i == j:
+        i, j = random.randint(0, max_len), random.randint(0, max_len)
+    return i * 'a' + j * 'b'
 
 
 def generate_bad(max_len=None, max_change_number=10):
-    if max_len is None:
-        pal = generate_palindrome()
-    else:
-        pal = generate_palindrome(max_len)
-
-    opal = pal
-
-    if max_change_number > len(pal):
-        max_change_number = len(pal) / 2
-
-    for _ in xrange(max_change_number):
-        i = random.randint(0, len(pal) - 1)
-        pal = pal[:i] + VOCAB[random.randint(0, len(VOCAB) - 1)] + pal[i+1:]
-
-    if pal == opal:
-        return generate_bad(max_len, max_change_number + 2)
-    return pal
+    # action = random.randint(-9,10)
+    # if action <= 0:
+    k = random.randint(1, max_len)
+    return k * 'a' + k * 'b'
+    # else:
+    #     g = generate_good() if max_len == None else generate_good(max_len)
+    #     j = random.randint(1, max_change_number)
+    #     for _ in xrange(j):
+    #         while is_good(g):
+    #             i = random.randint(0, len(g) - 1)
+    #             g = g[:i] + get_other(g[i]) + g[i+1:]
+    #     return g
 
 
 def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
@@ -42,7 +37,7 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
     words = []
     for _ in xrange(half_size):
         while True:
-            good = generate_palindrome(max_len)
+            good = generate_good(max_len)
             if (good, "good") not in not_in:
                 break
 
@@ -51,23 +46,25 @@ def generate_word_list(half_size, tag=True, not_in=None, max_len=50,
             if (bad, "bad") not in not_in:
                 break
 
-        if tag:
-            words.append((good, "good"))
-            words.append((bad, "bad"))
-        else:
-            words.append(good)
-            words.append(bad)
-    return words
+        words.append((good, "good"))
+        words.append((bad, "bad"))
+
+    return words if tag else [w for w, t in words]
 
 
-def is_palindrome(p):
-    halflen = len(p) / 2
-    fhalf = p[:halflen]
-    if len(p) % 2 == 0:
-        shalf = p[halflen:]
-    else:
-        shalf = p[halflen + 1:]
-    return fhalf == shalf[::-1]
+def is_good(s):
+    if s == "":
+        return False
+    i = 0
+    while i < len(s) and s[i] == 'a':
+        i += 1
+    j = 0
+    while i + j < len(s) and s[i + j] == 'b':
+        j += 1
+    if len(s) == i + j:
+        return i != j
+    return False
+
 
 
 if __name__ == "__main__":
@@ -89,7 +86,7 @@ if __name__ == "__main__":
     trainer = dy.AdamTrainer(net.pc)
 
     # Train and check accuracy each iteration
-    epoches = 5
+    epoches = 15
     print "######################################################"
     print "Run parameters:"
     print "*\tLSTM layers: %d" % num_layers
@@ -107,13 +104,13 @@ if __name__ == "__main__":
     print "\nWrong Predictions on TEST:"
     predictions = model.predict_on(net, test, char2int)
     good_preds = 0.0
-    output = open("pali.pred", "w")
+    output = open("double.pred", "w")
     for idx, word in enumerate(test):
         string = "{}\t{}".format(word, predictions[idx])
 
-        pali = is_palindrome(word)
+        isgood = is_good(word)
         pred = predictions[idx]
-        if (pali and pred == "good") or (not pali and pred == "bad"):
+        if (isgood and pred == "good") or (not isgood and pred == "bad"):
             good_preds += 1.0
         else:
             print idx, string
