@@ -82,12 +82,18 @@ class WordAndSubwordEmbeddedNet(AbstractNet):
 class WordEmbeddedAndCharEmbeddedLSTMNet(CharEmbeddedLSTMNet):
     def __init__(self, num_layers, embed_dim, lstm1_dim, in_dim, out_dim, char_vocab_size,
                  vocab_size):
-        CharEmbeddedLSTMNet.__init__(self, num_layers, embed_dim, lstm1_dim, in_dim, out_dim,
+        CharEmbeddedLSTMNet.__init__(self, num_layers, embed_dim, lstm1_dim, \
+                                                                                 in_dim, out_dim,
                                      char_vocab_size)
         self._WE = self.pc.add_lookup_parameters((vocab_size, embed_dim))  # word embedding
+        self._W1 = self.pc.add_parameters((embed_dim, 2 * embed_dim))  # linear layer 4 embedding
+        self._b1 = self.pc.add_parameters(embed_dim)
 
     def repr(self, sentence):
         words, chars = zip(*sentence)
         chars = CharEmbeddedLSTMNet.repr(self, chars)
-        return [dy.concatenate([dy.lookup(self._WE, word), characters])
-                for word, characters in zip(words, chars)]
+        embedded = [dy.concatenate([dy.lookup(self._WE, word), embedded_chars])
+                    for word, embedded_chars in zip(words, chars)]
+        W1 = dy.parameter(self._W1)
+        b1 = dy.parameter(self._b1)
+        return [W1 * x + b1 for x in embedded]
