@@ -1,5 +1,6 @@
 import numpy as np
 import dynet as dy
+import itertools
 
 
 class AbstractNet:
@@ -62,12 +63,12 @@ class AbstractNet:
         s_f, s_b = layer1[AbstractNet.FORWARD].initial_state(), layer1[
             AbstractNet.BACKWARD].initial_state()
         outs_f, outs_b = s_f.transduce(rep), s_b.transduce(rep[::-1])
-        bs = [dy.concatenate([bf, bb]) for bf, bb in zip(outs_f, outs_b)]
+        bs = [dy.concatenate([bf, bb]) for bf, bb in itertools.izip(outs_f, outs_b)]
 
         s_f, s_b = layer2[AbstractNet.FORWARD].initial_state(), layer2[
             AbstractNet.BACKWARD].initial_state()
         outs_f, outs_b = s_f.transduce(bs), s_b.transduce(bs[::-1])
-        btags = [dy.concatenate([bf, bb]) for i, (bf, bb) in enumerate(zip(outs_f, outs_b))]
+        btags = [dy.concatenate([bf, bb]) for i, (bf, bb) in enumerate(itertools.izip(outs_f, outs_b))]
 
         W, b = dy.parameter(self._W), dy.parameter(self._b)
         outs = [dy.softmax(W * x + b) for x in btags]
@@ -83,7 +84,7 @@ class AbstractNet:
         :return: Cross-entropy loss for this sentence (dynet.Expression, should call value()).
         """
         probs = self(sentence)
-        return [-dy.log(dy.pick(prob, expected)) for prob, expected in zip(probs, expected_outputs)]
+        return [-dy.log(dy.pick(prob, expected)) for prob, expected in itertools.izip(probs, expected_outputs)]
 
     def predict(self, sentence):
         """
@@ -100,20 +101,22 @@ class AbstractNet:
     def predcit_batch(self, sentences):
         probs = []
         all_probs = []
+        dy.renew_cg()
         for sentence in sentences:
             p = self(sentence, renew_graph=False)
             probs.append(p)
             all_probs.extend(p)
-        dy.forward(p)
+        dy.forward(all_probs)
         return [[np.argmax(word.npvalue()) for word in sentence] for sentence in probs]
 
     def loss_on_batch(self, sentences_and_tags):
         losses = []
         total = 0
+        dy.renew_cg()
         for sentence, tags in sentences_and_tags:
             probs = self(sentence, renew_graph=False)
             total += len(tags)
-            losses.extend([-dy.log(dy.pick(prob, tag)) for prob, tag in zip(probs, tags)])
+            losses.extend([-dy.log(dy.pick(prob, tag)) for prob, tag in itertools.izip(probs, tags)])
         return dy.esum(losses) / total
 
     def save_to(self, file_name):
@@ -276,7 +279,7 @@ class WordEmbeddedAndCharEmbeddedLSTMNet(CharEmbeddedLSTMNet):
         words, chars = zip(*sentence)
         chars = CharEmbeddedLSTMNet.repr(self, list(chars))
         embedded = [dy.concatenate([dy.lookup(self._WE, word), embedded_chars])
-                    for word, embedded_chars in zip(words, chars)]
+                    for word, embedded_chars in itertools.izip(words, chars)]
         W1 = dy.parameter(self._W1)
         b1 = dy.parameter(self._b1)
         return [W1 * x + b1 for x in embedded]

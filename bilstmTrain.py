@@ -4,6 +4,7 @@ import numpy as np
 import dynet as dy
 import part_3_model as mdl
 from sys import argv
+import itertools
 
 UNKNOWN = "UUUNKKK"
 
@@ -88,34 +89,36 @@ def train_on(net, trainer, train_set, dev_set, epoches, ignored_tag=-1):
     """
     copy = list(train_set)
     total_words = reduce(lambda x, y: x + len(y), train_set, 0.0)
-    length = len(train_set)
-    print "Iteration,Average Loss,Epoch Time,DEV Accuracy"
+    batch_size = 500
+    print "Iteration,Sentences/100,Average Loss,Epoch Time,DEV Accuracy"
     dev_copy = list(dev_set)
+    count_sentences = 0
     for i in xrange(epoches):
         total_loss = 0.0
         start_time = time()
         random.shuffle(copy)
-        batch = 1000
-        for start in range(len(copy) / batch):
-            dy.renew_cg()
-            batch_losses = net.loss_on_batch(copy[start * batch : (start + 1) * batch])
+        for start in range(len(copy) / batch_size):
+            batch = copy[start*batch_size: (start+1)*batch_size]
+            batch_losses = net.loss_on_batch(batch)
             total_loss += np.sum(batch_losses.npvalue())
             batch_losses.backward()
             trainer.update()
-        acc = accuracy_on(net, dev_copy)
-        avg_loss = total_loss / total_words
-        epoch_time = time() - start_time
-        print "{:^9},{:12},{:9}s,{:11}%".format(i, avg_loss, epoch_time, 100 * acc)
+            count_sentences += len(batch) / 100
+            acc = accuracy_on(net, dev_copy, ignored_tag)
+            avg_loss = total_loss / total_words
+            epoch_time = time() - start_time
+            print "{:9d},{:13d},{:12f},{:9f}s,{:11f}%".format(i, count_sentences, avg_loss,
+                                                              epoch_time, 100 * acc)
 
 
 def main():
     # PARAMETERS #
     k = 3
     num_layers = 1
-    embed_dim = 50
-    lstm1_dim = 50
-    in_dim = 50
-    epoches = 30
+    embed_dim = 64
+    lstm1_dim = 32
+    in_dim = 32
+    epoches = 5
 
     # PROGRAM ARGUMENTS #
     length = len(argv)
@@ -204,6 +207,21 @@ def main():
         train_on(net, trainer, train, dev, epoches, ignored_tag=ignore_tag)
 
     net.save_to(model_file)
+
+    ############ TODO DELET TIS
+    print "\nTEST:\n"
+    sentence = []
+    for line in file("pos/temp"):
+        if line != "\n":
+            word, tag = line[:-1].split()
+            sentence.append(word)
+        else:
+            if len(sentence) > 0:
+                predictions = net.predcit_batch([W2I[w] for w in sentence])
+                for word, prediction in itertools.izip(sentence, predictions):
+                    print "{}\t{}".format(word, I2T[prediction])
+            print "\n******\n"
+            sentence = []
 
     #######################################################
     import os
