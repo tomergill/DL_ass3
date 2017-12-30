@@ -1,6 +1,7 @@
 import numpy as np
 import dynet as dy
 import itertools
+import pickle
 
 
 class AbstractNet:
@@ -68,7 +69,8 @@ class AbstractNet:
         s_f, s_b = layer2[AbstractNet.FORWARD].initial_state(), layer2[
             AbstractNet.BACKWARD].initial_state()
         outs_f, outs_b = s_f.transduce(bs), s_b.transduce(bs[::-1])
-        btags = [dy.concatenate([bf, bb]) for i, (bf, bb) in enumerate(itertools.izip(outs_f, outs_b))]
+        btags = [dy.concatenate([bf, bb])
+                 for i, (bf, bb) in enumerate(itertools.izip(outs_f, outs_b))]
 
         W, b = dy.parameter(self._W), dy.parameter(self._b)
         outs = [dy.softmax(W * x + b) for x in btags]
@@ -116,7 +118,8 @@ class AbstractNet:
         for sentence, tags in sentences_and_tags:
             probs = self(sentence, renew_graph=False)
             total += len(tags)
-            losses.extend([-dy.log(dy.pick(prob, tag)) for prob, tag in itertools.izip(probs, tags)])
+            losses.extend([-dy.log(dy.pick(prob, tag))
+                           for prob, tag in itertools.izip(probs, tags)])
         return dy.esum(losses) / total
 
     def save_to(self, file_name):
@@ -153,7 +156,8 @@ class CharEmbeddedLSTMNet(AbstractNet):
     LSTM, which output is the word vector representation.
     """
 
-    def __init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number, char_vocab_size):
+    def __init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number,
+                 char_vocab_size):
         """
         Initializes the network like the base class, and also initializes the character LSTM.
 
@@ -244,8 +248,8 @@ class WordEmbeddedAndCharEmbeddedLSTMNet(CharEmbeddedLSTMNet):
     representation.
     """
 
-    def __init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number, char_vocab_size,
-                 vocab_size):
+    def __init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number,
+                 char_vocab_size, vocab_size):
         """
         Initializes the network like the base class (the built in embedding matrix is for the
         characters), and also the char LSTM, the embedding matrix for whole words and the linear
@@ -263,8 +267,8 @@ class WordEmbeddedAndCharEmbeddedLSTMNet(CharEmbeddedLSTMNet):
         :param vocab_size: How many words are in the vocabulary. AKA how many rows the word
         embedding matrix will have.
         """
-        CharEmbeddedLSTMNet.__init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number,
-                                     char_vocab_size)
+        CharEmbeddedLSTMNet.__init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim,
+                                     classes_number, char_vocab_size)
         self._WE = self.pc.add_lookup_parameters((vocab_size, embed_dim))  # word embedding
         self._W1 = self.pc.add_parameters((embed_dim, 2 * embed_dim))  # linear layer 4 embedding
         self._b1 = self.pc.add_parameters(embed_dim)
@@ -283,3 +287,48 @@ class WordEmbeddedAndCharEmbeddedLSTMNet(CharEmbeddedLSTMNet):
         W1 = dy.parameter(self._W1)
         b1 = dy.parameter(self._b1)
         return [W1 * x + b1 for x in embedded]
+
+
+def save_net_and_params_to(net, save_file, num_layers, embed_dim, lstm1_dim, half_in_dim,
+                           classes_number, I2T, vocab_size=0, char_vocab_size=0,
+                           word_to_pre_index=None, word_to_suf_index=None, I2W=None, I2C=None,
+                           unknown_word_index=-1):
+    save_dict = {
+        "class": net.__class__,
+        "params": (num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number, vocab_size,
+                   char_vocab_size),
+        "words_lists": (I2W, I2C, word_to_pre_index, word_to_suf_index),
+        "tags_list": I2T,
+        "unk_i": unknown_word_index
+    }
+    net.save_to(save_file)
+    pickle.dump(save_dict, open("data_of_" + save_file, "wb"))
+
+
+def load_net_and_params_from(load_file):
+    loader = pickle.load(open("data_of_" + load_file, "rb"))
+    num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number, vocab_size, char_vocab_size = \
+        loader["params"]
+    I2W, I2C, word_to_pre_index, word_to_suf_index = loader["words_lists"]
+    I2T = loader["tags_list"]
+
+    if loader["class"] == WordEmbeddedNet:  # Option (a)
+        net = WordEmbeddedNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T), len(I2W))
+    elif loader["class"] == CharEmbeddedLSTMNet:  # Option (b)
+        net = CharEmbeddedLSTMNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T), len(I2W))
+    elif loader["class"] == WordAndSubwordEmbeddedNet:  # Option (c)
+        net = WordAndSubwordEmbeddedNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T),
+                                        len(I2W), word_to_pre_index, word_to_suf_index)
+    else:  # Option (d)
+        net = WordEmbeddedAndCharEmbeddedLSTMNet(num_layers, embed_dim, lstm1_dim, half_in_dim,
+                                                 len(I2T), len(I2C), len(I2W))
+    net.load_from(load_file)  # loads the parameter collection
+
+    if loader["class"] == WordEmbeddedNet:  # Option (a)
+        return net, I2T, I2W, loader["unk_i"]
+    elif loader["class"] == CharEmbeddedLSTMNet:  # Option (b)
+        return net, I2T, I2C, loader["unk_i"]
+    elif loader["class"] == WordAndSubwordEmbeddedNet:  # Option (c)
+        return net, I2T, I2W, loader["unk_i"]
+    else:  # Option (d)
+        return net, I2T, I2W, I2C, loader["unk_i"]

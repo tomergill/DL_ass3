@@ -206,7 +206,24 @@ def main():
     else:
         train_on(net, trainer, train, dev, epoches, ignored_tag=ignore_tag)
 
-    net.save_to(model_file)
+    # SAVE NET #
+    if repr_choice == "a":
+        mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
+                                   len(I2T), I2T, vocab_size=len(W2I), I2W=I2W,
+                                   unknown_word_index=W2I[UNKNOWN])
+    elif repr_choice == "b":
+        mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
+                                   len(I2T), I2T, len(W2I), I2C=I2C, char_vocab_size=len(I2C))
+    elif repr_choice == "c":
+        mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
+                                   len(I2T), I2T, vocab_size=len(W2I), I2W=I2W,
+                                   unknown_word_index=W2I[UNKNOWN], word_to_pre_index=WI2PI,
+                                   word_to_suf_index=WI2SI)
+    else:  # d
+        mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
+                                   len(I2T), I2T, vocab_size=len(W2I), I2W=I2W,
+                                   unknown_word_index=W2I[UNKNOWN], I2C=I2C,
+                                   char_vocab_size=len(I2C))
 
     ############ TODO DELET TIS
     print "\nTEST:\n"
@@ -217,7 +234,7 @@ def main():
             sentence.append(word)
         else:
             if len(sentence) > 0:
-                predictions = net.predcit_batch([W2I[w] for w in sentence])
+                predictions = net.predict([W2I[w] for w in sentence])
                 for word, prediction in itertools.izip(sentence, predictions):
                     print "{}\t{}".format(word, I2T[prediction])
             print "\n******\n"
