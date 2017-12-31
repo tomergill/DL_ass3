@@ -8,7 +8,7 @@ def make_sentences(file_name):
     sentence = []
     for line in file(file_name):
         if line != "\n":
-            sentence.append(line[-1])
+            sentence.append(line[:-1])
         else:
             sentences.append(sentence)
             sentence = []
@@ -36,7 +36,7 @@ def main():
 
     sentences = make_sentences(input_file)
     if repr_choice != "b":
-        words = [[W2I[word] for word in sentence] for sentence in sentences]
+        words = [[W2I[word] if word in I2W else unk_index for word in sentence] for sentence in sentences]
     if repr_choice == "b" or repr_choice == "d":
         chars = [[[C2I[c] for c in list(word)] for word in sentence] for sentence in sentences]
 
@@ -47,7 +47,7 @@ def main():
     else:
         inp = [zip(sentence, characters) for sentence, characters in itertools.izip(words, chars)]
 
-    predictions = net.predict_batches(inp)
+    predictions = net.predcit_batch(inp)
 
     for sentence, preds in itertools.izip(sentences, predictions):
         for word, pred in itertools.izip(sentence, preds):

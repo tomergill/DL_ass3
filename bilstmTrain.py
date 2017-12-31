@@ -66,7 +66,8 @@ def accuracy_on(net, dev_set, ignored_tag=-1):
     total = good = 0.0
     random.shuffle(dev_set)
     sentences, tags = zip(*dev_set)
-    predictions = net.predcit_batch(sentences)
+    # predictions = net.predcit_batch(sentences)
+    predictions = [net.predict(sentence) for sentence in sentences]
     for i, preds in enumerate(predictions):
         total += len(tags[i])
         good += np.sum(np.equal(np.array([p if p != ignored_tag or tags[i] != ignored_tag else -1
@@ -97,13 +98,21 @@ def train_on(net, trainer, train_set, dev_set, epoches, ignored_tag=-1):
         total_loss = 0.0
         start_time = time()
         random.shuffle(copy)
-        for start in range(len(copy) / batch_size):
+        for start in range(len(copy) / batch_size + 1):
             batch = copy[start*batch_size: (start+1)*batch_size]
-            batch_losses = net.loss_on_batch(batch)
-            total_loss += np.sum(batch_losses.npvalue())
-            batch_losses.backward()
-            trainer.update()
+            # batch_losses = net.loss_on_batch(batch)
+            # total_loss += np.sum(batch_losses.npvalue())
+            # batch_losses.backward()
+            # trainer.update()
             count_sentences += len(batch) / 100
+
+            for sentence, tags in batch:
+                losses = net.get_loss(sentence, tags)
+                loss = dy.esum(losses)
+                total_loss += loss.value()
+                loss.backward()
+                trainer.update()
+
             acc = accuracy_on(net, dev_copy, ignored_tag)
             avg_loss = total_loss / total_words
             epoch_time = time() - start_time
@@ -135,7 +144,7 @@ def main():
     if length >= 5:
         dev_file = argv[4]
 
-    if length >= 6:
+    if length >= 6 and len(argv[5]) == 1:
         ignore_tag = argv[5]
     elif "ner" in train_file or "NER" in train_file:
         ignore_tag = "O"
@@ -149,6 +158,8 @@ def main():
 
     if repr_choice == 'b' or repr_choice == 'd':  # b, d
         I2C = reduce(lambda l1, l2: l1 + l2, [list(word) for word in words_set])
+        I2C = sorted(list(set(I2C)))
+        # I2C = [chr(i) for i in range(0, 256)]
         C2I = {c: i for i, c in enumerate(I2C)}
 
     if repr_choice == 'c':  # c
@@ -213,7 +224,7 @@ def main():
                                    unknown_word_index=W2I[UNKNOWN])
     elif repr_choice == "b":
         mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
-                                   len(I2T), I2T, len(W2I), I2C=I2C, char_vocab_size=len(I2C))
+                                   len(I2T), I2T, I2C=I2C, char_vocab_size=len(I2C))
     elif repr_choice == "c":
         mdl.save_net_and_params_to(net, model_file, num_layers, embed_dim, lstm1_dim, in_dim,
                                    len(I2T), I2T, vocab_size=len(W2I), I2W=I2W,
@@ -225,20 +236,20 @@ def main():
                                    unknown_word_index=W2I[UNKNOWN], I2C=I2C,
                                    char_vocab_size=len(I2C))
 
-    ############ TODO DELET TIS
-    print "\nTEST:\n"
-    sentence = []
-    for line in file("pos/temp"):
-        if line != "\n":
-            word, tag = line[:-1].split()
-            sentence.append(word)
-        else:
-            if len(sentence) > 0:
-                predictions = net.predict([W2I[w] for w in sentence])
-                for word, prediction in itertools.izip(sentence, predictions):
-                    print "{}\t{}".format(word, I2T[prediction])
-            print "\n******\n"
-            sentence = []
+    # ############ TODO DELET TIS
+    # print "\nTEST:\n"
+    # sentence = []
+    # for line in file("pos/temp"):
+    #     if line != "\n":
+    #         word, tag = line[:-1].split()
+    #         sentence.append(word)
+    #     else:
+    #         if len(sentence) > 0:
+    #             predictions = net.predict([W2I[w] for w in sentence])
+    #             for word, prediction in itertools.izip(sentence, predictions):
+    #                 print "{}\t{}".format(word, I2T[prediction])
+    #         print "\n******\n"
+    #         sentence = []
 
     #######################################################
     import os

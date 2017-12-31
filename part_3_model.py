@@ -76,7 +76,7 @@ class AbstractNet:
         outs = [dy.softmax(W * x + b) for x in btags]
         return outs
 
-    def compute_loss(self, sentence, expected_outputs):
+    def get_loss(self, sentence, expected_outputs):
         """
         Inputs to network and returns the cross-entropy loss.
 
@@ -172,7 +172,7 @@ class CharEmbeddedLSTMNet(AbstractNet):
         matrix will have.
         """
         AbstractNet.__init__(self, num_layers, embed_dim, lstm1_dim, half_in_dim, classes_number,
-                             char_vocab_size)
+                             vocab_size=char_vocab_size)
         self.char_LSTM = dy.LSTMBuilder(num_layers, embed_dim, embed_dim, self.pc)
 
     def repr(self, sentence):
@@ -183,8 +183,9 @@ class CharEmbeddedLSTMNet(AbstractNet):
         :param sentence: List of lists of chars' indexes (words)
         :return: vector outputs of the embedded char-by-char lstm.
         """
-        s = self.char_LSTM.initial_state()
-        return [s.transduce([dy.lookup(self._E, c) for c in word]) for word in sentence]
+        # s = self.char_LSTM.initial_state()
+        return [self.char_LSTM.initial_state().transduce([dy.lookup(self._E, c) for c in word])[-1]
+                for word in sentence]
 
 
 # Option (c)
@@ -315,7 +316,7 @@ def load_net_and_params_from(load_file):
     if loader["class"] == WordEmbeddedNet:  # Option (a)
         net = WordEmbeddedNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T), len(I2W))
     elif loader["class"] == CharEmbeddedLSTMNet:  # Option (b)
-        net = CharEmbeddedLSTMNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T), len(I2W))
+        net = CharEmbeddedLSTMNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T), len(I2C))
     elif loader["class"] == WordAndSubwordEmbeddedNet:  # Option (c)
         net = WordAndSubwordEmbeddedNet(num_layers, embed_dim, lstm1_dim, half_in_dim, len(I2T),
                                         len(I2W), word_to_pre_index, word_to_suf_index)
